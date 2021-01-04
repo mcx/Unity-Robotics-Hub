@@ -35,3 +35,8 @@ This part assumes you have access to a functional ROS workspace. Steps covered i
 <img src="img/0_pick_place.gif" width="400"/>
 
 This part includes the preparation and setup necessary to run a pick-and-place task with known poses using MoveIt. Steps covered include creating and invoking a motion planning service in ROS, moving a Unity Articulation Body based on a calculated trajectory, and controlling a gripping tool to successfully grasp and drop an object.
+
+---
+
+## [Part 4: Pick-and-Place Sim and Real](4_sim_and_real.md)
+
