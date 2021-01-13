@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using RosMessageTypes.Geometry;
+using ROSGeometry;
 using RosMessageTypes.Moveit;
 using RosMessageTypes.NiryoMoveit;
 using RosMessageTypes.NiryoOne;
@@ -11,8 +11,8 @@ using Transform = UnityEngine.Transform;
 
 public class NiryoSubscriber : MonoBehaviour
 {
-    private const int OPEN_GRIPPER = 2;
-    private const int CLOSE_GRIPPER = 1;
+    private const int OPEN_GRIPPER = 1;
+    private const int CLOSE_GRIPPER = 2;
     private const int TOOL_COMMAND_EXECUTION = 6;
     private const int TRAJECTORY_COMMAND_EXECUTION = 7;
     
@@ -20,15 +20,15 @@ public class NiryoSubscriber : MonoBehaviour
     private const int NUM_ROBOT_JOINTS = 6;
     
     // Hardcoded variables 
-    private const float JOINT_ASSIGNMENT_WAIT = 0.1f;
-    private const float PICK_POSE_OFFSET = 0.1f;
+    private const float JOINT_ASSIGNMENT_WAIT = 0.038f;
+    private readonly Vector3 PICK_POSE_OFFSET = Vector3.up * 0.15f;
     
     // Assures that the gripper is always positioned above the target cube before grasping.
-    private readonly RosQuaternion pickOrientation = new RosQuaternion(0.5,0.5,-0.5,0.5);
+    private readonly UnityEngine.Quaternion pickOrientation = UnityEngine.Quaternion.Euler(90, 90, 0);
 
     // Variables required for ROS communication
-    public string rosJointPublishTopicName = "publish_target";
-    public string rosRobotCommandsTopicName = "robot_command";
+    public string rosJointPublishTopicName = "sim_real_pnp";
+    public string rosRobotCommandsTopicName = "niryo_one/commander/robot_action/goal";
 
     public GameObject niryoOne;
     public GameObject target;
@@ -44,6 +44,8 @@ public class NiryoSubscriber : MonoBehaviour
 
     private readonly List<RobotMoveActionGoal> moveActionGoals = new List<RobotMoveActionGoal>();
     public float commandExecutionSleep = 0.5f;
+
+    private bool executing;
 
     /// <summary>
     ///     Close the gripper
@@ -94,14 +96,13 @@ public class NiryoSubscriber : MonoBehaviour
             },
             pick_pose = new RosMessageTypes.Geometry.Pose
             {
-
-                position = (target.transform.position + pickPoseOffset).To<FLU>(),,
+                position = (target.transform.position + PICK_POSE_OFFSET).To<FLU>(),
                 // The hardcoded x/z angles assure that the gripper is always positioned above the target cube before grasping.
-                orientation = Quaternion.Euler(90, target.transform.eulerAngles.y, 0).To<FLU>()
+                orientation = UnityEngine.Quaternion.Euler(90, target.transform.eulerAngles.y, 0).To<FLU>()
             },
             place_pose = new RosMessageTypes.Geometry.Pose
             {
-                position = (targetPlacement.transform.position + pickPoseOffset).To<FLU>(),
+                position = (targetPlacement.transform.position + PICK_POSE_OFFSET).To<FLU>(),
                 orientation = pickOrientation.To<FLU>()
             }
         };
@@ -169,7 +170,7 @@ public class NiryoSubscriber : MonoBehaviour
     {
         for (;;)
         {
-            if (moveActionGoals.Count > 0)
+            if (moveActionGoals.Count > 0 && !executing)
             {
                 if (moveActionGoals[0].goal.cmd.cmd_type == TRAJECTORY_COMMAND_EXECUTION)
                 {
@@ -177,12 +178,15 @@ public class NiryoSubscriber : MonoBehaviour
                 }
                 else if (moveActionGoals[0].goal.cmd.cmd_type == TOOL_COMMAND_EXECUTION)
                 {
+                    Debug.Log("Tool Command");
                     if (moveActionGoals[0].goal.cmd.tool_cmd.cmd_type == OPEN_GRIPPER)
                     {
+                        Debug.Log("Open Tool Command");
                         OpenGripper();
                     }
                     else if (moveActionGoals[0].goal.cmd.tool_cmd.cmd_type == CLOSE_GRIPPER)
                     {
+                        Debug.Log("Close Tool Command");
                         CloseGripper();
                     }
                 }
@@ -209,6 +213,7 @@ public class NiryoSubscriber : MonoBehaviour
     /// <param name="trajectories"></param>
     private IEnumerator ExecuteTrajectories(RobotTrajectory trajectories)
     {
+        executing = true;
         // For every robot pose in trajectory plan
         foreach (var point in trajectories.joint_trajectory.points)
         {
@@ -225,5 +230,7 @@ public class NiryoSubscriber : MonoBehaviour
             // Wait for robot to achieve pose for all joint assignments
             yield return new WaitForSeconds(JOINT_ASSIGNMENT_WAIT);
         }
+
+        executing = false;
     }
 }
